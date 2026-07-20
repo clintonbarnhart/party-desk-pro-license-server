@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 3.4.0-alpha4
+ * Version: 3.5.0-alpha5
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-define('PDP_LS_VERSION', '3.4.0-alpha4');
+define('PDP_LS_VERSION', '3.5.0-alpha5');
 define('PDP_LS_FILE', __FILE__);
 define('PDP_LS_PATH', plugin_dir_path(__FILE__));
 define('PDP_LS_URL', plugin_dir_url(__FILE__));
@@ -26,6 +26,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscription-manage
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-webhook-processor.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-engine.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-admin.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-product-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions-admin.php';
 PDP_DB::init();
@@ -38,6 +39,7 @@ final class PDP_License_Server {
     public static function init() {
         add_action('init', array(__CLASS__, 'register_types'));
         PDP_License_Engine::init();
+        PDP_Product_Manager::init();
         add_action('rest_api_init', array(__CLASS__, 'register_rest_routes'));
         add_action('admin_menu', array(__CLASS__, 'admin_menu'));
         add_action('add_meta_boxes', array(__CLASS__, 'meta_boxes'));
@@ -70,6 +72,7 @@ final class PDP_License_Server {
         self::register_types();
         PDP_DB::install();
         self::seed_defaults();
+        PDP_Product_Manager::activate();
         flush_rewrite_rules();
     }
 

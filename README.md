@@ -51,3 +51,8 @@ The `3.3.0-alpha3` phase adds durable website activation records, license lifecy
 ## Phase 4 Operations & Portal
 
 The `3.4.0-alpha4` phase adds a professional license operations dashboard, advanced filtering, security timeline, and customer-facing authorized website and activity views. See `PHASE4.md`.
+
+
+## Phase 5 Commercial Product Delivery
+
+The `3.5.0-alpha5` phase adds multi-product management, stable/beta release channels, license-gated update metadata, signed ZIP downloads, and a product delivery dashboard. See `PHASE5.md`.

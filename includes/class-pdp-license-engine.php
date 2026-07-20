@@ -109,7 +109,7 @@ final class PDP_License_Engine {
         $p = self::payload($request);
         if (!$p['license_key']) { return new WP_REST_Response(array('success'=>false,'status'=>'invalid','message'=>'A license key is required.'), 400); }
         if (!self::rate_limit($p['license_key'])) { return new WP_REST_Response(array('success'=>false,'status'=>'rate_limited','message'=>'Too many license requests. Try again shortly.'), 429); }
-        if (!in_array($p['product'], array('party-desk','party-desk-pro'), true)) { return new WP_REST_Response(array('success'=>false,'status'=>'invalid_product','message'=>'This license is not valid for that product.'), 400); }
+        if (!PDP_Product_Manager::product_accepts_requests($p['product'])) { return new WP_REST_Response(array('success'=>false,'status'=>'invalid_product','message'=>'This product is not available for license requests.'), 400); }
         $license_id = self::find_license($p['license_key']);
         if (!$license_id) { self::audit(0, $action . '_failed', 'License key not found.', $p); return new WP_REST_Response(array('success'=>false,'status'=>'invalid','message'=>'License key not found.'), 404); }
         $email = sanitize_email(get_post_meta($license_id, '_pdp_email', true));
@@ -137,12 +137,17 @@ final class PDP_License_Engine {
         self::audit($license_id, $action === 'activate' ? 'activated' : 'validated', ($action === 'activate' ? 'Activated' : 'Validated') . ' on ' . $site, $p, $activation_id);
         $result = self::response($license_id, $state, $activation ?: array());
         if ($action === 'update-check') {
-            $settings = get_option(PDP_License_Server::OPT_SETTINGS, array());
-            $latest = sanitize_text_field($settings['license_zip_version'] ?? '');
+            $channel = sanitize_key(get_post_meta($license_id, '_pdp_update_channel', true) ?: 'stable');
+            $release = PDP_Product_Manager::latest_release($p['product'], $channel);
+            $latest = sanitize_text_field($release['version'] ?? '');
             $result['update_available'] = $latest && version_compare($latest, $p['installed_version'], '>');
             $result['version'] = $latest ?: $p['installed_version'];
-            $result['download_url'] = $result['update_available'] ? self::signed_download_url($license_id, $site) : '';
-            $result['changelog'] = sanitize_textarea_field($settings['license_changelog'] ?? '');
+            $result['download_url'] = ($result['update_available'] && !empty($release['attachment_id'])) ? PDP_Product_Manager::signed_download_url($license_id, $site, $release['id']) : '';
+            $result['changelog'] = sanitize_textarea_field($release['changelog'] ?? '');
+            $result['channel'] = $release['channel'] ?? $channel;
+            $result['requires_wordpress'] = $release['requires_wp'] ?? '';
+            $result['requires_php'] = $release['requires_php'] ?? '';
+            $result['package_ready'] = !empty($release['attachment_id']);
         }
         return new WP_REST_Response($result, 200);
     }

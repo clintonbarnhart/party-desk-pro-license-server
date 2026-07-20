@@ -53,3 +53,9 @@ This build preserves the existing signup form, Square payment links, license API
 * Added Every 6 Months as a billing period.
 * Updated plan cards, signup cards, license pricing, and license expiration logic for six-month plans.
 * Added a more polished live signup-card preview in the plan editor.
+
+= 3.5.0-alpha5 =
+* Added products and releases manager.
+* Added stable and beta update channels.
+* Added signed, license-gated release downloads.
+* Added product delivery analytics dashboard.
