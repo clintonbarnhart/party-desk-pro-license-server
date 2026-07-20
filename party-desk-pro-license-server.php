@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 4.0.0-beta1
+ * Version: 4.0.0-beta2
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-define('PDP_LS_VERSION', '4.0.0-beta1');
+define('PDP_LS_VERSION', '4.0.0-beta2');
 define('PDP_LS_FILE', __FILE__);
 define('PDP_LS_PATH', plugin_dir_path(__FILE__));
 define('PDP_LS_URL', plugin_dir_url(__FILE__));
@@ -474,6 +474,8 @@ final class PDP_License_Server {
     public static function plan_box($post) {
         wp_nonce_field('pdp_save_plan','pdp_plan_nonce');
         $m = function($key,$default='') use ($post) { $v=get_post_meta($post->ID,$key,true); return $v!==''?$v:$default; };
+        $square_plans = class_exists('PDP_Square_Sync') ? PDP_Square_Sync::get_cached_subscription_plans() : array();
+        $mapped_variation = (string) $m('_pdp_square_plan_variation_id');
         ?>
         <div class="pdp-plan-editor-pro">
             <header class="pdp-plan-editor-hero">
@@ -502,7 +504,11 @@ final class PDP_License_Server {
                         <option value="trial" <?php selected($m('_pdp_billing'),'trial'); ?>>Free Trial</option>
                     </select><small>Every 6 Months renews twice per year.</small></label>
                     <label><span>Setup fee</span><div class="pdp-money-field"><b>$</b><input type="number" min="0" step="0.01" name="pdp_setup_fee" value="<?php echo esc_attr($m('_pdp_setup_fee','0')); ?>"></div><small>Optional one-time onboarding or setup charge.</small></label>
-                    <label><span>Square plan variation ID</span><input type="text" name="pdp_square_plan_variation_id" value="<?php echo esc_attr($m('_pdp_square_plan_variation_id')); ?>" placeholder="Example: OO5OGJQR5NBZJVGIE57MMA2L"><small>Required for automatic recurring checkout. Use the subscription plan variation ID from Square.</small></label>
+                    <label><span>Square subscription plan</span><select name="pdp_square_plan_variation_id">
+                        <option value="">Select a synced Square plan…</option>
+                        <?php if ($mapped_variation && !isset($square_plans[$mapped_variation])) : ?><option value="<?php echo esc_attr($mapped_variation); ?>" selected>Currently mapped plan (sync to display its name)</option><?php endif; ?>
+                        <?php foreach ($square_plans as $square_plan) : ?><option value="<?php echo esc_attr($square_plan['variation_id']); ?>" <?php selected($mapped_variation, $square_plan['variation_id']); ?>><?php echo esc_html($square_plan['label']); ?></option><?php endforeach; ?>
+                    </select><small><?php echo $square_plans ? 'Choose the matching recurring plan synced from Square.' : 'Open Signup Automation and click Sync Square Plans first.'; ?></small></label>
                 </div>
             </section>
 

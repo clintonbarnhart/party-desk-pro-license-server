@@ -59,7 +59,25 @@ final class PDP_Signup_Automation {
         }
         $settings['grace_period_days'] = (string) min(90, max(0, absint($_POST['grace_period_days'] ?? 7)));
         update_option(self::OPT, $settings, false);
-        wp_safe_redirect(add_query_arg(array('page'=>'pdp-signup-automation','pdp_notice'=>'Automation studio settings saved.'), admin_url('admin.php')));
+
+        $mapping = isset($_POST['square_plan_map']) && is_array($_POST['square_plan_map']) ? wp_unslash($_POST['square_plan_map']) : array();
+        foreach ($mapping as $plan_id => $variation_id) {
+            $plan_id = absint($plan_id);
+            if ($plan_id && 'pdp_plan' === get_post_type($plan_id) && current_user_can('edit_post', $plan_id)) {
+                update_post_meta($plan_id, '_pdp_square_plan_variation_id', sanitize_text_field($variation_id));
+            }
+        }
+
+        $notice = 'Automation studio settings saved.';
+        if (isset($_POST['pdp_sync_square_plans'])) {
+            $synced = PDP_Square_Sync::sync_subscription_plans();
+            if (is_wp_error($synced)) {
+                $notice = 'Settings saved. Square plan sync failed: ' . $synced->get_error_message();
+            } else {
+                $notice = 'Settings saved and ' . count($synced) . ' Square subscription plan variations synced.';
+            }
+        }
+        wp_safe_redirect(add_query_arg(array('page'=>'pdp-signup-automation','pdp_notice'=>$notice), admin_url('admin.php')));
         exit;
     }
 
@@ -67,6 +85,8 @@ final class PDP_Signup_Automation {
         if (!current_user_can('manage_options')) { return; }
         $s = self::settings();
         $plans = get_posts(array('post_type'=>'pdp_plan','post_status'=>'publish','numberposts'=>-1,'orderby'=>'menu_order title','order'=>'ASC'));
+        $square_plans = PDP_Square_Sync::get_cached_subscription_plans();
+        $last_sync = PDP_Square_Sync::get_last_plan_sync();
         $square_ready = class_exists('PDP_Square_Client') && (new PDP_Square_Client())->is_configured();
         $mapped = 0;
         foreach ($plans as $plan) {
@@ -155,14 +175,25 @@ final class PDP_Signup_Automation {
         foreach ($steps as $i=>$step) { echo '<li><b>'.($i+1).'</b><span><strong>'.esc_html($step[0]).'</strong><small>'.esc_html($step[1]).'</small></span></li>'; }
         echo '</ol></section>';
 
-        echo '<section class="pdp-dashboard-panel"><div class="pdp-dashboard-panel-head"><div><span class="pdp-section-kicker">PLAN CONNECTIONS</span><h2>Square plan mapping</h2><p>Every paid plan needs a Square subscription variation.</p></div></div><div class="pdp-plan-map">';
+        echo '<section class="pdp-dashboard-panel pdp-square-sync-panel"><div class="pdp-dashboard-panel-head"><div><span class="pdp-section-kicker">PLAN CONNECTIONS</span><h2>Square plan mapping</h2><p>Sync Square, then select the recurring variation for each paid Party Desk Pro plan.</p></div></div>';
+        echo '<div class="pdp-square-sync-toolbar"><div><strong>'.(count($square_plans) ? esc_html(count($square_plans).' Square variations available') : 'No Square plans synced yet').'</strong><small>'.($last_sync ? 'Last synced '.esc_html(get_date_from_gmt($last_sync, get_option('date_format').' '.get_option('time_format'))) : 'Connect Square and run your first sync.').'</small></div><button type="submit" name="pdp_sync_square_plans" value="1" class="button button-primary"><span class="dashicons dashicons-update"></span> Sync Square Plans</button></div>';
+        echo '<div class="pdp-plan-map pdp-plan-map-selects">';
         if (!$plans) { echo '<div class="pdp-empty-mini">No published plans found.</div>'; }
         foreach ($plans as $plan) {
             $price=(float)get_post_meta($plan->ID,'_pdp_price',true); $billing=sanitize_key(get_post_meta($plan->ID,'_pdp_billing',true)); $variation=(string)get_post_meta($plan->ID,'_pdp_square_plan_variation_id',true);
-            $ready=$price<=0 || 'trial'===$billing || $variation;
-            echo '<a href="'.esc_url(get_edit_post_link($plan->ID)).'" class="pdp-plan-map-row"><span><strong>'.esc_html($plan->post_title).'</strong><small>'.($price<=0 ? 'Free / trial' : esc_html('$'.number_format($price,2).' / '.$billing)).'</small></span><em class="'.($ready?'is-ready':'is-needed').'">'.($ready?'Ready':'Map plan').'</em></a>';
+            $free = $price<=0 || 'trial'===$billing;
+            echo '<div class="pdp-plan-map-select-row"><div><strong>'.esc_html($plan->post_title).'</strong><small>'.($free ? 'No Square plan needed' : esc_html('$'.number_format($price,2).' / '.$billing)).'</small></div>';
+            if ($free) {
+                echo '<span class="pdp-map-free">Free / trial</span>';
+            } else {
+                echo '<select name="square_plan_map['.absint($plan->ID).']"><option value="">Select a Square subscription plan…</option>';
+                if ($variation && !isset($square_plans[$variation])) { echo '<option value="'.esc_attr($variation).'" selected>Currently mapped plan (sync to show its name)</option>'; }
+                foreach ($square_plans as $square_plan) { echo '<option value="'.esc_attr($square_plan['variation_id']).'" '.selected($variation,$square_plan['variation_id'],false).'>'.esc_html($square_plan['label']).'</option>'; }
+                echo '</select>';
+            }
+            echo '</div>';
         }
-        echo '</div><div class="pdp-panel-footer"><a href="'.esc_url(admin_url('admin.php?page=pdp-plans')).'">Manage all plans →</a></div></section>';
+        echo '</div><div class="pdp-panel-footer"><span>Selections are saved with the Automation Studio.</span><a href="'.esc_url(admin_url('admin.php?page=pdp-plans')).'">Manage all plans →</a></div></section>';
         echo '</aside></div></form></div>';
     }
 

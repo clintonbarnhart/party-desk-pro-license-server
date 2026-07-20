@@ -76,3 +76,8 @@ This build preserves the existing signup form, Square payment links, license API
 ## Phase 8 Automated Signup Checkout
 
 Version `4.0.0-beta1` connects `[pdpsignup]` to Square-hosted recurring checkout and automatically prepares customer accounts, subscriptions, and licenses after webhook confirmation. See `PHASE8.md`.
+
+
+## Version 4.0 Beta 2
+
+Adds one-click Square subscription plan synchronization and human-readable dropdown mapping. See `PHASE10.md`.

@@ -51,6 +51,32 @@ final class PDP_Square_Client {
     }
 
     public function test_connection() { return $this->request('GET', 'locations'); }
+
+    public function search_subscription_plans($cursor = '') {
+        $body = array(
+            'object_types' => array('SUBSCRIPTION_PLAN'),
+            'include_deleted_objects' => false,
+            'limit' => 1000,
+        );
+        if ($cursor) { $body['cursor'] = sanitize_text_field($cursor); }
+        return $this->request('POST', 'catalog/search', $body);
+    }
+
+    public function list_subscription_plans() {
+        $objects = array();
+        $cursor = '';
+        $pages = 0;
+        do {
+            $result = $this->search_subscription_plans($cursor);
+            if (is_wp_error($result)) { return $result; }
+            if (!empty($result['objects']) && is_array($result['objects'])) {
+                $objects = array_merge($objects, $result['objects']);
+            }
+            $cursor = sanitize_text_field($result['cursor'] ?? '');
+            $pages++;
+        } while ($cursor && $pages < 20);
+        return $objects;
+    }
     public function create_customer($payload) { $payload['idempotency_key'] = $payload['idempotency_key'] ?? wp_generate_uuid4(); return $this->request('POST', 'customers', $payload); }
     public function update_customer($id, $payload) { return $this->request('PUT', 'customers/' . rawurlencode($id), $payload); }
     public function retrieve_customer($id) { return $this->request('GET', 'customers/' . rawurlencode($id)); }
