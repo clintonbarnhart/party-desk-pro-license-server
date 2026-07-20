@@ -59,3 +59,9 @@ This build preserves the existing signup form, Square payment links, license API
 * Added stable and beta update channels.
 * Added signed, license-gated release downloads.
 * Added product delivery analytics dashboard.
+
+= 3.6.0-alpha6 =
+* Replaced manual attachment IDs with direct plugin ZIP uploads.
+* Added ZIP validation and automatic plugin name/version detection.
+* Added duplicate release protection, package SHA-256 tracking, and download counts.
+* Improved the Products & Releases dashboard and release history columns.
