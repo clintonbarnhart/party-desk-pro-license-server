@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 3.0.0-alpha1-m3
+ * Version: 3.1.0-alpha1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,13 +11,21 @@
 
 if (!defined('ABSPATH')) { exit; }
 
+define('PDP_LS_VERSION', '3.1.0-alpha1');
+define('PDP_LS_FILE', __FILE__);
+define('PDP_LS_PATH', plugin_dir_path(__FILE__));
+define('PDP_LS_URL', plugin_dir_url(__FILE__));
+
+require_once PDP_LS_PATH . 'includes/core/class-pdp-autoloader.php';
+PDP_Autoloader::register(PDP_LS_PATH . 'includes/core');
+
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-db.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions-admin.php';
 PDP_DB::init();
 
 final class PDP_License_Server {
-    const VERSION = '3.0.0-alpha1-m3';
+    const VERSION = PDP_LS_VERSION;
     const OPT_SETTINGS = 'pdp_ls_settings';
     const OPT_FIELDS = 'pdp_ls_fields';
 
@@ -1434,7 +1442,9 @@ final class PDP_License_Server {
 }
 
 register_activation_hook(__FILE__,array('PDP_License_Server','activate'));
+register_activation_hook(__FILE__,array('PDP_Core','activate'));
 register_deactivation_hook(__FILE__,array('PDP_License_Server','deactivate'));
 PDP_License_Server::init();
+PDP_Core::init();
 
 add_action('admin_notices',function(){if(!empty($_GET['pdp_notice'])){$type=(!empty($_GET['pdp_notice_type'])&&$_GET['pdp_notice_type']==='error')?'error':'success';echo '<div class="notice notice-'.$type.' is-dismissible"><p>'.esc_html(rawurldecode(sanitize_text_field(wp_unslash($_GET['pdp_notice'])))).'</p></div>';}});

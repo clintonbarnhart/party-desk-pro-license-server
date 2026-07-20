@@ -33,3 +33,8 @@ This repository is initialized from the verified `3.0.0-alpha1-milestone3` codeb
 ## Safety
 
 This is alpha software. Test on a staging WordPress installation before production deployment.
+
+
+## Phase 1 Core Framework
+
+The `3.1.0-alpha1` phase adds a service bootstrap, autoloading, repeatable migrations, typed settings, privacy-safe logging, security helpers, and a System & Diagnostics admin screen. See `PHASE1.md`.
