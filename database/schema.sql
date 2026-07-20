@@ -1,0 +1,7 @@
+-- Schema is installed through includes/class-pdp-db.php using WordPress dbDelta.
+-- Tables use the current WordPress table prefix:
+-- pdp_subscriptions
+-- pdp_subscription_events
+-- pdp_webhook_logs
+-- pdp_square_customers
+-- pdp_square_sync
