@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 3.7.0-alpha7
+ * Version: 3.8.0-alpha8
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-define('PDP_LS_VERSION', '3.7.0-alpha7');
+define('PDP_LS_VERSION', '3.8.0-alpha8');
 define('PDP_LS_FILE', __FILE__);
 define('PDP_LS_PATH', plugin_dir_path(__FILE__));
 define('PDP_LS_URL', plugin_dir_url(__FILE__));
@@ -28,6 +28,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-engine.php'
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-admin.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-product-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-platform.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-signup-automation.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions-admin.php';
 PDP_DB::init();
@@ -42,6 +43,7 @@ final class PDP_License_Server {
         PDP_License_Engine::init();
         PDP_Product_Manager::init();
         PDP_Platform::init();
+        PDP_Signup_Automation::init();
         add_action('rest_api_init', array(__CLASS__, 'register_rest_routes'));
         add_action('admin_menu', array(__CLASS__, 'admin_menu'));
         add_action('add_meta_boxes', array(__CLASS__, 'meta_boxes'));
@@ -500,6 +502,7 @@ final class PDP_License_Server {
                         <option value="trial" <?php selected($m('_pdp_billing'),'trial'); ?>>Free Trial</option>
                     </select><small>Every 6 Months renews twice per year.</small></label>
                     <label><span>Setup fee</span><div class="pdp-money-field"><b>$</b><input type="number" min="0" step="0.01" name="pdp_setup_fee" value="<?php echo esc_attr($m('_pdp_setup_fee','0')); ?>"></div><small>Optional one-time onboarding or setup charge.</small></label>
+                    <label><span>Square plan variation ID</span><input type="text" name="pdp_square_plan_variation_id" value="<?php echo esc_attr($m('_pdp_square_plan_variation_id')); ?>" placeholder="Example: OO5OGJQR5NBZJVGIE57MMA2L"><small>Required for automatic recurring checkout. Use the subscription plan variation ID from Square.</small></label>
                 </div>
             </section>
 
@@ -549,7 +552,7 @@ final class PDP_License_Server {
         if (!isset($_POST['pdp_plan_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['pdp_plan_nonce'])),'pdp_save_plan')) return;
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!current_user_can('edit_post',$post_id)) return;
-        $text = array('pdp_description'=>'_pdp_description','pdp_badge'=>'_pdp_badge','pdp_billing'=>'_pdp_billing','pdp_button'=>'_pdp_button','pdp_features'=>'_pdp_features');
+        $text = array('pdp_description'=>'_pdp_description','pdp_badge'=>'_pdp_badge','pdp_billing'=>'_pdp_billing','pdp_button'=>'_pdp_button','pdp_features'=>'_pdp_features','pdp_square_plan_variation_id'=>'_pdp_square_plan_variation_id');
         foreach($text as $in=>$meta) update_post_meta($post_id,$meta,isset($_POST[$in])?sanitize_textarea_field(wp_unslash($_POST[$in])):'');
         foreach(array('pdp_price'=>'_pdp_price','pdp_setup_fee'=>'_pdp_setup_fee') as $in=>$meta) update_post_meta($post_id,$meta,isset($_POST[$in])?number_format((float)$_POST[$in],2,'.',''):'0');
         foreach(array('pdp_trial_days'=>'_pdp_trial_days','pdp_sites'=>'_pdp_sites') as $in=>$meta) update_post_meta($post_id,$meta,isset($_POST[$in])?absint($_POST[$in]):0);
@@ -1015,6 +1018,8 @@ final class PDP_License_Server {
         $fields=get_option(self::OPT_FIELDS,self::default_fields());
         $errors=array();
         $success=false;
+        $checkout_url='';
+        $automation_message='';
         $submitted=!$preview && isset($_POST['pdp_signup_submit']);
 
         if($submitted){
@@ -1045,7 +1050,15 @@ final class PDP_License_Server {
                     update_post_meta($id,'_pdp_amount',$price+$setup);
                     update_post_meta($id,'_pdp_status','New');
                     wp_mail(get_option('admin_email'),'New Party Desk Pro signup: '.$title,'A new signup request is ready for review.');
-                    $success=true;
+                    $automation=PDP_Signup_Automation::prepare_checkout($id,$plan_id,$data);
+                    if(is_wp_error($automation)){
+                        update_post_meta($id,'_pdp_automation_error',$automation->get_error_message());
+                        $automation_message=$automation->get_error_message().' Your request was saved for administrator review.';
+                        $success=true;
+                    }else{
+                        $checkout_url=esc_url_raw($automation['url']??'');
+                        $success=true;
+                    }
                 }else $errors[]='The request could not be saved.';
             }
         }
@@ -1055,7 +1068,11 @@ final class PDP_License_Server {
         $initial_step=$errors?'2':'1';
         echo '<div class="pdp-signup" style="--pdp-accent:'.$accent.'" data-initial-step="'.$initial_step.'">';
         if($success){
-            echo '<div class="pdp-success"><h3>Request received</h3><p>Thank you. We will review your information and send your payment link.</p></div></div>';
+            if($checkout_url){
+                echo '<div class="pdp-success pdp-checkout-ready"><span class="dashicons dashicons-yes-alt"></span><h3>Your account is ready</h3><p>Continue to Square to securely complete your subscription. Your Party Desk Pro license will be created automatically after payment.</p><a class="pdp-checkout-button" href="'.esc_url($checkout_url).'">Continue to Secure Checkout <span>→</span></a><small>Secure recurring billing is processed by Square.</small></div></div>';
+            }else{
+                echo '<div class="pdp-success"><h3>Signup received</h3><p>'.esc_html($automation_message?:'Your account and license have been prepared. Check your email for access information.').'</p></div></div>';
+            }
             return ob_get_clean();
         }
         if($errors)echo '<div class="pdp-errors"><strong>Please correct the following:</strong><ul><li>'.implode('</li><li>',array_map('esc_html',$errors)).'</li></ul></div>';
@@ -1099,7 +1116,7 @@ final class PDP_License_Server {
             }
             echo '</div></section>';
         }
-        echo '<div class="pdp-submit pdp-final-actions"><button type="button" class="pdp-back-step">← Back to Plans</button><div><p>Submitting this form does not charge your card. We will review your request and send a secure Square payment link.</p><button type="submit" name="pdp_signup_submit">'.esc_html($s['submit_text']??'Submit Request').'</button></div></div></div></form></div>';
+        echo '<div class="pdp-submit pdp-final-actions"><button type="button" class="pdp-back-step">← Back to Plans</button><div><p>After submitting, paid plans continue to Square secure checkout. Your account and license are created automatically after successful payment.</p><button type="submit" name="pdp_signup_submit">'.esc_html($s['submit_text']??'Submit Request').'</button></div></div></div></form></div>';
         return ob_get_clean();
     }
 

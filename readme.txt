@@ -71,3 +71,8 @@ This build preserves the existing signup form, Square payment links, license API
 * Added public product manifest endpoint.
 * Added richer secure update metadata and update delivery controls.
 * Added client update integration documentation inside WordPress.
+
+
+## Phase 8 Automated Signup Checkout
+
+Version `3.8.0-alpha8` connects `[pdpsignup]` to Square-hosted recurring checkout and automatically prepares customer accounts, subscriptions, and licenses after webhook confirmation. See `PHASE8.md`.

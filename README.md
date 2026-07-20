@@ -61,3 +61,8 @@ The `3.5.0-alpha5` phase adds multi-product management, stable/beta release chan
 ## Phase 7 Commercial Platform
 
 Version `3.7.0-alpha7` adds a setup wizard, platform readiness checks, public product manifests, richer licensed update metadata, and a documented client update contract. See `PHASE7.md`.
+
+
+## Phase 8 Automated Signup Checkout
+
+Version `3.8.0-alpha8` connects `[pdpsignup]` to Square-hosted recurring checkout and automatically prepares customer accounts, subscriptions, and licenses after webhook confirmation. See `PHASE8.md`.

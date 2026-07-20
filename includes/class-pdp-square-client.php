@@ -54,6 +54,7 @@ final class PDP_Square_Client {
     public function create_customer($payload) { $payload['idempotency_key'] = $payload['idempotency_key'] ?? wp_generate_uuid4(); return $this->request('POST', 'customers', $payload); }
     public function update_customer($id, $payload) { return $this->request('PUT', 'customers/' . rawurlencode($id), $payload); }
     public function retrieve_customer($id) { return $this->request('GET', 'customers/' . rawurlencode($id)); }
+    public function create_payment_link($payload) { $payload['idempotency_key'] = $payload['idempotency_key'] ?? wp_generate_uuid4(); return $this->request('POST', 'online-checkout/payment-links', $payload); }
     public function create_subscription($payload) { $payload['idempotency_key'] = $payload['idempotency_key'] ?? wp_generate_uuid4(); return $this->request('POST', 'subscriptions', $payload); }
     public function retrieve_subscription($id) { return $this->request('GET', 'subscriptions/' . rawurlencode($id)); }
     public function cancel_subscription($id) { return $this->request('POST', 'subscriptions/' . rawurlencode($id) . '/cancel', array()); }

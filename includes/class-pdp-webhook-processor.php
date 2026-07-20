@@ -7,9 +7,11 @@ final class PDP_Webhook_Processor {
         $object = $payload['data']['object'] ?? array();
         $subscription = $object['subscription'] ?? array();
         if (!$subscription || empty($subscription['id'])) { return array('handled'=>false,'message'=>'No subscription object found.'); }
+        $auto_id = PDP_Signup_Automation::handle_unlinked_subscription($subscription, $type);
         global $wpdb;
         $table = PDP_DB::table('subscriptions');
         $local_id = (int)$wpdb->get_var($wpdb->prepare("SELECT id FROM `{$table}` WHERE square_subscription_id=%s", sanitize_text_field($subscription['id'])));
+        if (!$local_id && $auto_id) { $local_id = absint($auto_id); }
         if (!$local_id) { return array('handled'=>false,'message'=>'Subscription is not linked locally.'); }
         PDP_DB::update_subscription($local_id, array(
             'status' => PDP_Subscription_Manager::normalize_status($subscription['status'] ?? 'pending'),
