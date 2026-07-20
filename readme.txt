@@ -65,3 +65,9 @@ This build preserves the existing signup form, Square payment links, license API
 * Added ZIP validation and automatic plugin name/version detection.
 * Added duplicate release protection, package SHA-256 tracking, and download counts.
 * Improved the Products & Releases dashboard and release history columns.
+
+= 3.7.0-alpha7 =
+* Added commercial setup wizard and readiness checks.
+* Added public product manifest endpoint.
+* Added richer secure update metadata and update delivery controls.
+* Added client update integration documentation inside WordPress.

@@ -58,6 +58,6 @@ The `3.4.0-alpha4` phase adds a professional license operations dashboard, advan
 The `3.5.0-alpha5` phase adds multi-product management, stable/beta release channels, license-gated update metadata, signed ZIP downloads, and a product delivery dashboard. See `PHASE5.md`.
 
 
-## Phase 6 Direct Release Manager
+## Phase 7 Commercial Platform
 
-The `3.6.0-alpha6` phase replaces attachment-ID entry with direct validated plugin ZIP uploads, automatic plugin/version detection, package integrity metadata, duplicate release protection, and download statistics. See `PHASE6.md`.
+Version `3.7.0-alpha7` adds a setup wizard, platform readiness checks, public product manifests, richer licensed update metadata, and a documented client update contract. See `PHASE7.md`.

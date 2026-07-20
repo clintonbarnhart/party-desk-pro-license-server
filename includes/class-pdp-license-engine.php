@@ -95,7 +95,7 @@ final class PDP_License_Engine {
             'sites_used' => count($sites),
             'activation' => $activation,
             'server_time' => current_time('mysql', true),
-            'validation_interval' => 12 * HOUR_IN_SECONDS,
+            'validation_interval' => max(1, absint(PDP_Platform::settings()['validation_hours'])) * HOUR_IN_SECONDS,
         );
     }
 
@@ -147,7 +147,25 @@ final class PDP_License_Engine {
             $result['channel'] = $release['channel'] ?? $channel;
             $result['requires_wordpress'] = $release['requires_wp'] ?? '';
             $result['requires_php'] = $release['requires_php'] ?? '';
-            $result['package_ready'] = !empty($release['attachment_id']);
+            $platform = PDP_Platform::settings();
+            $release_id = absint($release['id'] ?? 0);
+            $attachment_id = absint($release['attachment_id'] ?? 0);
+            $updates_enabled = $platform['updates_enabled'] === '1';
+            if (!$updates_enabled) {
+                $result['update_available'] = false;
+                $result['download_url'] = '';
+            }
+            $result['package_ready'] = $updates_enabled && !empty($attachment_id);
+            $result['plugin'] = sanitize_key($p['product']) . '/' . sanitize_key($p['product']) . '.php';
+            $result['slug'] = sanitize_key($p['product']);
+            $result['name'] = $release_id ? sanitize_text_field(get_post_meta($release_id, '_pdp_release_plugin_name', true)) : 'Party Desk Pro';
+            $result['checksum_sha256'] = $release_id ? sanitize_text_field(get_post_meta($release_id, '_pdp_release_sha256', true)) : '';
+            $result['package_size'] = $release_id ? absint(get_post_meta($release_id, '_pdp_release_package_size', true)) : 0;
+            $result['published_at'] = $release_id ? get_post_time('c', true, $release_id) : '';
+            $result['homepage'] = home_url('/');
+            $result['support_url'] = esc_url_raw($platform['support_url']);
+            $result['portal_url'] = esc_url_raw($platform['portal_url']);
+            $result['sections'] = array('description'=>'Party Desk Pro commercial event management software.','changelog'=>sanitize_textarea_field($release['changelog'] ?? ''));
         }
         return new WP_REST_Response($result, 200);
     }
