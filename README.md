@@ -42,3 +42,7 @@ The `3.1.0-alpha1` phase adds a service bootstrap, autoloading, repeatable migra
 ## Phase 2 Square Billing Engine
 
 The `3.2.0-alpha2` release adds a real Square API client, connection testing, customer synchronization, subscription creation and lifecycle controls, plus webhook-driven reconciliation. See `PHASE2.md`.
+
+## Phase 3 License Management Engine
+
+The `3.3.0-alpha3` phase adds durable website activation records, license lifecycle validation, domain-limit enforcement, API audit events, update-check responses, and a License Activity admin screen. See `PHASE3.md`.

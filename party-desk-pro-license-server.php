@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 3.2.0-alpha2
+ * Version: 3.3.0-alpha3
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-define('PDP_LS_VERSION', '3.2.0-alpha2');
+define('PDP_LS_VERSION', '3.3.0-alpha3');
 define('PDP_LS_FILE', __FILE__);
 define('PDP_LS_PATH', plugin_dir_path(__FILE__));
 define('PDP_LS_URL', plugin_dir_url(__FILE__));
@@ -24,6 +24,8 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-square-client.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-square-sync.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscription-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-webhook-processor.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-engine.php';
+require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-license-admin.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-pdp-subscriptions-admin.php';
 PDP_DB::init();
@@ -35,6 +37,7 @@ final class PDP_License_Server {
 
     public static function init() {
         add_action('init', array(__CLASS__, 'register_types'));
+        PDP_License_Engine::init();
         add_action('rest_api_init', array(__CLASS__, 'register_rest_routes'));
         add_action('admin_menu', array(__CLASS__, 'admin_menu'));
         add_action('add_meta_boxes', array(__CLASS__, 'meta_boxes'));
@@ -133,6 +136,7 @@ final class PDP_License_Server {
                 'license_email_show_account' => '1',
                 'license_zip_attachment_id' => '0',
                 'license_zip_version' => '',
+                'license_changelog' => '',
                 'license_auto_email' => '1',
                 'license_setup_instructions' => "1. Download the Party Desk Pro ZIP file.\n2. In WordPress, go to Plugins > Add New > Upload Plugin.\n3. Upload the ZIP file and activate Party Desk Pro.\n4. Open Party Desk Pro > License.\n5. Enter the license server URL and your license key, then click Activate License.",
                 'portal_download_heading' => 'Download Party Desk Pro',
@@ -199,6 +203,7 @@ final class PDP_License_Server {
         add_submenu_page('pdp-dashboard','Plans','Plans','manage_options','pdp-plans',array(__CLASS__,'plans_admin_page'));
         add_submenu_page('pdp-dashboard','License Requests','License Requests','manage_options','pdp-license-requests',array(__CLASS__,'requests_admin_page'));
         add_submenu_page('pdp-dashboard','Licenses','Licenses','manage_options','pdp-licenses',array(__CLASS__,'licenses_admin_page'));
+        add_submenu_page('pdp-dashboard','License Activity','License Activity','manage_options','pdp-license-activity',array('PDP_License_Admin','activity_page')); 
         add_submenu_page('pdp-dashboard','Signup Form Builder','Signup Form Builder','manage_options','pdp-form-builder',array(__CLASS__,'form_builder'));
         add_submenu_page('pdp-dashboard','My Account Builder','My Account','manage_options','pdp-portal-settings',array(__CLASS__,'portal_settings'));
         add_submenu_page('pdp-dashboard','Subscriptions','Subscriptions','manage_options','pdp-subscriptions',array('PDP_Subscriptions_Admin','subscriptions_page'));
