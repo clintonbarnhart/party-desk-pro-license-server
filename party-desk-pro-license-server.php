@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Party Desk Pro License Server
  * Description: Manual license requests, editable plans, Square payment links, licenses, and customer account management without WooCommerce.
- * Version: 3.3.0-alpha3
+ * Version: 3.4.0-alpha4
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: Party Desk Pro
@@ -11,7 +11,7 @@
 
 if (!defined('ABSPATH')) { exit; }
 
-define('PDP_LS_VERSION', '3.3.0-alpha3');
+define('PDP_LS_VERSION', '3.4.0-alpha4');
 define('PDP_LS_FILE', __FILE__);
 define('PDP_LS_PATH', plugin_dir_path(__FILE__));
 define('PDP_LS_URL', plugin_dir_url(__FILE__));
@@ -1236,6 +1236,9 @@ final class PDP_License_Server {
         }
         if(!$license_id || get_post_type($license_id)!=='pdp_license') return '<div class="pdp-errors">No Party Desk Pro license is connected to this account. Contact support for assistance.</div>';
         $d=array();foreach(array('business','email','plan','price','key','status','expires','sites')as$k)$d[$k]=get_post_meta($license_id,'_pdp_'.$k,true);
+        $d['license_id']=$license_id;
+        $d['activations']=PDP_DB::get_license_activations($license_id,true);
+        $d['events']=PDP_DB::get_license_events($license_id,8);
         $d['logout_url']=wp_logout_url($current_url);
         return self::portal_html($d);
     }
@@ -1281,7 +1284,19 @@ final class PDP_License_Server {
         }
         echo '<aside class="pdp-help-card"><div class="pdp-help-icon"><svg viewBox="0 0 24 24"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/></svg></div><span>NEED HELP?</span><h3>We’re here for you</h3><p>Questions about your plan, license, or account? Contact our support team.</p>';
         if(!empty($s['support_url']) || $preview) echo '<a class="pdp-support'.(empty($s['support_url'])?' is-preview-hidden':'').'" href="'.esc_url($s['support_url']?:'#').'" '.(!$preview?'target="_blank" rel="noopener"':'').' data-preview-button>'.esc_html($s['support_label']).'<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>';
-        echo '</aside></div></main><footer><span>Protected account dashboard</span><span>'.esc_html($s['portal_brand']).'</span></footer></div>';return ob_get_clean();
+        echo '</aside></div>';
+        if(!$preview && !empty($d['license_id'])){
+            $activations=is_array($d['activations']??null)?$d['activations']:array();
+            $events=is_array($d['events']??null)?$d['events']:array();
+            echo '<section class="pdp-portal-activity"><div class="pdp-section-head"><div><span>LICENSE SECURITY</span><h3>Authorized websites</h3></div><span class="pdp-secure-badge">'.count(array_filter($activations,function($a){return ($a['status']??'')==='active';})).' active</span></div>';
+            if(!$activations){echo '<div class="pdp-portal-empty">No websites have activated this license yet.</div>';}
+            else{echo '<div class="pdp-site-list">';foreach($activations as $a){echo '<article><div><strong>'.esc_html($a['site_name']?:wp_parse_url($a['site_url'],PHP_URL_HOST)).'</strong><small>'.esc_html($a['site_url']).'</small></div><span class="pdp-site-status is-'.esc_attr($a['status']).'">'.esc_html(ucfirst($a['status'])).'</span><small>Last checked '.esc_html($a['last_checked_at']).'</small></article>';}echo '</div>';}
+            echo '<div class="pdp-section-head pdp-history-head"><div><span>RECENT ACTIVITY</span><h3>License history</h3></div></div>';
+            if(!$events){echo '<div class="pdp-portal-empty">No license activity has been recorded yet.</div>';}
+            else{echo '<div class="pdp-history-list">';foreach($events as $e){echo '<article><span class="pdp-history-dot"></span><div><strong>'.esc_html(ucwords(str_replace('_',' ',$e['event_type']))).'</strong><p>'.esc_html($e['message']).'</p></div><time>'.esc_html($e['created_at']).'</time></article>';}echo '</div>';}
+            echo '</section>';
+        }
+        echo '</main><footer><span>Protected account dashboard</span><span>'.esc_html($s['portal_brand']).'</span></footer></div>';return ob_get_clean();
     }
 
 

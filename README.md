@@ -46,3 +46,8 @@ The `3.2.0-alpha2` release adds a real Square API client, connection testing, cu
 ## Phase 3 License Management Engine
 
 The `3.3.0-alpha3` phase adds durable website activation records, license lifecycle validation, domain-limit enforcement, API audit events, update-check responses, and a License Activity admin screen. See `PHASE3.md`.
+
+
+## Phase 4 Operations & Portal
+
+The `3.4.0-alpha4` phase adds a professional license operations dashboard, advanced filtering, security timeline, and customer-facing authorized website and activity views. See `PHASE4.md`.
