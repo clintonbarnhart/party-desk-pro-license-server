@@ -65,4 +65,4 @@ Version `3.7.0-alpha7` adds a setup wizard, platform readiness checks, public pr
 
 ## Phase 8 Automated Signup Checkout
 
-Version `3.8.0-alpha8` connects `[pdpsignup]` to Square-hosted recurring checkout and automatically prepares customer accounts, subscriptions, and licenses after webhook confirmation. See `PHASE8.md`.
+Version `4.0.0-beta1` connects `[pdpsignup]` to Square-hosted recurring checkout and automatically prepares customer accounts, subscriptions, and licenses after webhook confirmation. See `PHASE8.md`.

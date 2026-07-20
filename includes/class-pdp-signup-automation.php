@@ -18,8 +18,22 @@ final class PDP_Signup_Automation {
             'auto_create_account' => '1',
             'auto_create_license' => '1',
             'auto_email_license' => '1',
+            'email_login_details' => '1',
+            'force_password_reset' => '0',
+            'suspend_failed_payment' => '1',
+            'expire_on_cancel' => '1',
+            'grace_period_days' => '7',
             'success_url' => home_url('/my-account/?signup=success'),
             'cancel_url' => home_url('/pricing/?signup=cancelled'),
+            'billing_url' => home_url('/my-account/'),
+            'support_url' => home_url('/support/'),
+            'documentation_url' => home_url('/documentation/'),
+            'signup_heading' => 'Start Your Party Desk Pro Subscription',
+            'signup_subheading' => 'Choose your plan, create your account, and continue to secure Square checkout.',
+            'checkout_button' => 'Continue to Secure Checkout',
+            'show_plan_comparison' => '1',
+            'show_faq' => '1',
+            'show_testimonials' => '0',
         );
     }
 
@@ -28,43 +42,149 @@ final class PDP_Signup_Automation {
     }
 
     public static function admin_menu() {
-        add_submenu_page('pdp-dashboard', 'Signup Automation', 'Signup Automation', 'manage_options', 'pdp-signup-automation', array(__CLASS__, 'settings_page'));
+        add_submenu_page('pdp-dashboard', 'Signup Automation Studio', 'Signup Automation', 'manage_options', 'pdp-signup-automation', array(__CLASS__, 'settings_page'));
     }
 
     public static function save_settings() {
         if (!current_user_can('manage_options')) { wp_die('Permission denied.'); }
         check_admin_referer('pdp_save_signup_automation');
-        $settings = array(
-            'enabled' => isset($_POST['enabled']) ? '1' : '0',
-            'auto_create_account' => isset($_POST['auto_create_account']) ? '1' : '0',
-            'auto_create_license' => isset($_POST['auto_create_license']) ? '1' : '0',
-            'auto_email_license' => isset($_POST['auto_email_license']) ? '1' : '0',
-            'success_url' => esc_url_raw(wp_unslash($_POST['success_url'] ?? '')),
-            'cancel_url' => esc_url_raw(wp_unslash($_POST['cancel_url'] ?? '')),
-        );
+        $checkboxes = array('enabled','auto_create_account','auto_create_license','auto_email_license','email_login_details','force_password_reset','suspend_failed_payment','expire_on_cancel','show_plan_comparison','show_faq','show_testimonials');
+        $settings = self::defaults();
+        foreach ($checkboxes as $key) { $settings[$key] = isset($_POST[$key]) ? '1' : '0'; }
+        foreach (array('success_url','cancel_url','billing_url','support_url','documentation_url') as $key) {
+            $settings[$key] = esc_url_raw(wp_unslash($_POST[$key] ?? ''));
+        }
+        foreach (array('signup_heading','signup_subheading','checkout_button') as $key) {
+            $settings[$key] = sanitize_text_field(wp_unslash($_POST[$key] ?? ''));
+        }
+        $settings['grace_period_days'] = (string) min(90, max(0, absint($_POST['grace_period_days'] ?? 7)));
         update_option(self::OPT, $settings, false);
-        wp_safe_redirect(add_query_arg(array('page'=>'pdp-signup-automation','pdp_notice'=>'Automation settings saved.'), admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(array('page'=>'pdp-signup-automation','pdp_notice'=>'Automation studio settings saved.'), admin_url('admin.php')));
         exit;
     }
 
     public static function settings_page() {
         if (!current_user_can('manage_options')) { return; }
         $s = self::settings();
-        echo '<div class="wrap pdp-admin pdp-modern-admin"><div class="pdp-admin-hero"><div><span class="pdp-admin-kicker">AUTOMATED SALES</span><h1>Signup & Subscription Automation</h1><p>Turn the signup builder into a complete self-service checkout that creates the customer, starts Square billing, issues the license, and sends access automatically.</p></div></div>';
+        $plans = get_posts(array('post_type'=>'pdp_plan','post_status'=>'publish','numberposts'=>-1,'orderby'=>'menu_order title','order'=>'ASC'));
+        $square_ready = class_exists('PDP_Square_Client') && (new PDP_Square_Client())->is_configured();
+        $mapped = 0;
+        foreach ($plans as $plan) {
+            $price = (float) get_post_meta($plan->ID, '_pdp_price', true);
+            $billing = sanitize_key(get_post_meta($plan->ID, '_pdp_billing', true));
+            if ($price <= 0 || 'trial' === $billing || get_post_meta($plan->ID, '_pdp_square_plan_variation_id', true)) { $mapped++; }
+        }
+        $all_mapped = count($plans) > 0 && $mapped === count($plans);
+        $portal_ready = !empty($s['success_url']);
+        $shortcode_page = self::find_signup_page();
+
+        echo '<div class="wrap pdp-admin pdp-modern-admin pdp-automation-studio">';
+        echo '<div class="pdp-admin-hero"><div><span class="pdp-admin-kicker">CUSTOMER JOURNEY</span><h1>Signup & Subscription Automation</h1><p>Configure the complete path from plan selection and Square checkout through account creation, license delivery, and customer portal access.</p></div><div class="pdp-hero-actions"><a class="button button-primary" href="'.esc_url(admin_url('admin.php?page=pdp-form-builder')).'">Edit Signup Form</a>'.($shortcode_page ? '<a class="button" target="_blank" rel="noopener" href="'.esc_url(get_permalink($shortcode_page)).'">Preview Signup Page</a>' : '').'</div></div>';
         if (!empty($_GET['pdp_notice'])) { echo '<div class="notice notice-success is-dismissible"><p>'.esc_html(wp_unslash($_GET['pdp_notice'])).'</p></div>'; }
-        echo '<div class="pdp-dashboard-grid"><main><section class="pdp-dashboard-panel"><div class="pdp-dashboard-panel-head"><div><h2>Automation workflow</h2><p>Paid plans use Square-hosted subscription checkout. Free and trial plans can be provisioned immediately.</p></div></div>';
+
+        echo '<div class="pdp-journey-status">';
+        self::status_card('Signup page', $shortcode_page ? 'Ready' : 'Needs page', $shortcode_page ? 'ready' : 'warning', 'dashicons-welcome-widgets-menus');
+        self::status_card('Square billing', $square_ready ? 'Connected' : 'Needs attention', $square_ready ? 'ready' : 'warning', 'dashicons-money-alt');
+        self::status_card('Plan mapping', $all_mapped ? 'Complete' : $mapped.'/'.count($plans).' ready', $all_mapped ? 'ready' : 'warning', 'dashicons-editor-table');
+        self::status_card('License delivery', '1' === $s['auto_create_license'] ? 'Automatic' : 'Manual', '1' === $s['auto_create_license'] ? 'ready' : 'warning', 'dashicons-admin-network');
+        echo '</div>';
+
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" class="pdp-automation-form">';
         wp_nonce_field('pdp_save_signup_automation');
         echo '<input type="hidden" name="action" value="pdp_save_signup_automation">';
+        echo '<div class="pdp-studio-layout"><main class="pdp-studio-main">';
+
+        self::panel_open('1', 'Checkout workflow', 'Control which automation steps run when a customer submits the signup form.');
         echo '<div class="pdp-automation-switches">';
-        self::switch_row('enabled','Enable automatic signup checkout','Create a Square subscription checkout directly after the customer submits the signup form.',$s['enabled']);
-        self::switch_row('auto_create_account','Create WordPress customer account','Create or connect a pdp_customer account using the signup email address.',$s['auto_create_account']);
-        self::switch_row('auto_create_license','Issue license after successful subscription','Create and activate the plan license when Square confirms the subscription.',$s['auto_create_license']);
-        self::switch_row('auto_email_license','Email license and account access','Send the existing branded license email after provisioning.',$s['auto_email_license']);
-        echo '</div><table class="form-table"><tr><th><label for="success_url">Successful checkout URL</label></th><td><input class="regular-text code" type="url" id="success_url" name="success_url" value="'.esc_attr($s['success_url']).'"><p class="description">Square returns the customer here after checkout.</p></td></tr><tr><th><label for="cancel_url">Cancelled checkout URL</label></th><td><input class="regular-text code" type="url" id="cancel_url" name="cancel_url" value="'.esc_attr($s['cancel_url']).'"></td></tr></table>';
-        submit_button('Save Automation Settings');
-        echo '</form></section></main><aside><section class="pdp-dashboard-panel"><div class="pdp-dashboard-panel-head"><div><h2>Automatic flow</h2><p>What happens after a customer selects a paid plan.</p></div></div><ol class="pdp-flow-list"><li><b>1</b><span><strong>Signup submitted</strong><small>Customer details and selected plan are saved.</small></span></li><li><b>2</b><span><strong>Account prepared</strong><small>A secure WordPress customer account is created or connected.</small></span></li><li><b>3</b><span><strong>Square checkout</strong><small>The customer pays on Square&apos;s hosted recurring checkout.</small></span></li><li><b>4</b><span><strong>Webhook confirmation</strong><small>Square confirms the new subscription to the license server.</small></span></li><li><b>5</b><span><strong>License delivered</strong><small>The license, portal access, and download are issued automatically.</small></span></li></ol></section></aside></div></div>';
+        self::switch_row('enabled','Enable self-service subscription checkout','Send paid-plan customers directly to Square hosted checkout after signup.',$s['enabled']);
+        self::switch_row('auto_create_account','Create or connect customer account','Use the signup email to create a secure Party Desk Pro customer account.',$s['auto_create_account']);
+        self::switch_row('auto_create_license','Issue license after successful subscription','Provision the selected plan license only after Square confirms the subscription.',$s['auto_create_license']);
+        self::switch_row('auto_email_license','Send branded license email','Email the customer their license, download, and portal access after provisioning.',$s['auto_email_license']);
+        echo '</div>';
+        self::panel_close();
+
+        self::panel_open('2', 'Signup page content', 'Customize the key text used during the signup and checkout handoff.');
+        echo '<div class="pdp-studio-fields">';
+        self::text_field('signup_heading','Signup heading',$s['signup_heading']);
+        self::text_field('signup_subheading','Signup subheading',$s['signup_subheading']);
+        self::text_field('checkout_button','Checkout button label',$s['checkout_button']);
+        echo '</div><div class="pdp-inline-options">';
+        self::compact_check('show_plan_comparison','Show plan comparison',$s['show_plan_comparison']);
+        self::compact_check('show_faq','Show FAQ section',$s['show_faq']);
+        self::compact_check('show_testimonials','Show testimonials section',$s['show_testimonials']);
+        echo '</div>';
+        self::panel_close();
+
+        self::panel_open('3', 'Customer account and access', 'Choose how customer credentials and portal access are handled.');
+        echo '<div class="pdp-automation-switches">';
+        self::switch_row('email_login_details','Email account login details','Include account access instructions in the welcome email.',$s['email_login_details']);
+        self::switch_row('force_password_reset','Require password reset on first login','Ask newly created customers to choose a private password before using the portal.',$s['force_password_reset']);
+        echo '</div><div class="pdp-studio-fields pdp-studio-fields-3">';
+        self::url_field('billing_url','Billing page URL',$s['billing_url']);
+        self::url_field('support_url','Support page URL',$s['support_url']);
+        self::url_field('documentation_url','Documentation URL',$s['documentation_url']);
+        echo '</div>';
+        self::panel_close();
+
+        self::panel_open('4', 'Subscription protection', 'Set the default response when Square reports payment or cancellation changes.');
+        echo '<div class="pdp-automation-switches">';
+        self::switch_row('suspend_failed_payment','Suspend license after failed payment','Mark the license unavailable when the subscription becomes past due.',$s['suspend_failed_payment']);
+        self::switch_row('expire_on_cancel','Expire license after cancellation','End license access when Square confirms the subscription has been canceled.',$s['expire_on_cancel']);
+        echo '</div><div class="pdp-studio-fields"><label class="pdp-studio-field"><span>Payment grace period</span><div class="pdp-number-suffix"><input type="number" min="0" max="90" name="grace_period_days" value="'.esc_attr($s['grace_period_days']).'"><em>days</em></div><small>Time allowed before a past-due license is suspended.</small></label></div>';
+        self::panel_close();
+
+        self::panel_open('5', 'Checkout redirects', 'Choose where Square returns customers after checkout.');
+        echo '<div class="pdp-studio-fields">';
+        self::url_field('success_url','Successful checkout URL',$s['success_url']);
+        self::url_field('cancel_url','Cancelled checkout URL',$s['cancel_url']);
+        echo '</div>';
+        self::panel_close();
+
+        echo '<div class="pdp-studio-save"><div><strong>Ready to save?</strong><span>Changes apply to new signup and subscription checkouts.</span></div><button type="submit" class="button button-primary button-hero">Save Automation Studio</button></div>';
+        echo '</main><aside class="pdp-studio-side">';
+
+        echo '<section class="pdp-dashboard-panel pdp-flow-panel"><div class="pdp-dashboard-panel-head"><div><span class="pdp-section-kicker">LIVE WORKFLOW</span><h2>Automatic flow</h2><p>The customer journey for paid subscriptions.</p></div></div><ol class="pdp-flow-list">';
+        $steps = array(
+            array('Signup submitted','Customer details and selected plan are saved.'),
+            array('Account prepared','A customer account is created or connected.'),
+            array('Square checkout','The buyer completes recurring payment securely.'),
+            array('Webhook verified','Square confirms the subscription server-to-server.'),
+            array('License issued','The correct plan and website allowance are assigned.'),
+            array('Access delivered','The welcome email, download, and portal are sent.'),
+        );
+        foreach ($steps as $i=>$step) { echo '<li><b>'.($i+1).'</b><span><strong>'.esc_html($step[0]).'</strong><small>'.esc_html($step[1]).'</small></span></li>'; }
+        echo '</ol></section>';
+
+        echo '<section class="pdp-dashboard-panel"><div class="pdp-dashboard-panel-head"><div><span class="pdp-section-kicker">PLAN CONNECTIONS</span><h2>Square plan mapping</h2><p>Every paid plan needs a Square subscription variation.</p></div></div><div class="pdp-plan-map">';
+        if (!$plans) { echo '<div class="pdp-empty-mini">No published plans found.</div>'; }
+        foreach ($plans as $plan) {
+            $price=(float)get_post_meta($plan->ID,'_pdp_price',true); $billing=sanitize_key(get_post_meta($plan->ID,'_pdp_billing',true)); $variation=(string)get_post_meta($plan->ID,'_pdp_square_plan_variation_id',true);
+            $ready=$price<=0 || 'trial'===$billing || $variation;
+            echo '<a href="'.esc_url(get_edit_post_link($plan->ID)).'" class="pdp-plan-map-row"><span><strong>'.esc_html($plan->post_title).'</strong><small>'.($price<=0 ? 'Free / trial' : esc_html('$'.number_format($price,2).' / '.$billing)).'</small></span><em class="'.($ready?'is-ready':'is-needed').'">'.($ready?'Ready':'Map plan').'</em></a>';
+        }
+        echo '</div><div class="pdp-panel-footer"><a href="'.esc_url(admin_url('admin.php?page=pdp-plans')).'">Manage all plans →</a></div></section>';
+        echo '</aside></div></form></div>';
     }
+
+    private static function find_signup_page() {
+        $pages = get_posts(array('post_type'=>'page','post_status'=>'publish','numberposts'=>50,'s'=>'[pdpsignup]'));
+        foreach ($pages as $page) {
+            if (has_shortcode($page->post_content, 'pdpsignup') || has_shortcode($page->post_content, 'party_desk_pro_license_request_form')) { return $page->ID; }
+        }
+        return 0;
+    }
+
+    private static function status_card($label,$value,$tone,$icon) {
+        echo '<div class="pdp-journey-card '.esc_attr($tone).'"><span class="dashicons '.esc_attr($icon).'"></span><div><small>'.esc_html($label).'</small><strong>'.esc_html($value).'</strong></div></div>';
+    }
+
+    private static function panel_open($number,$title,$description) {
+        echo '<section class="pdp-dashboard-panel pdp-studio-panel"><div class="pdp-dashboard-panel-head"><div class="pdp-step-title"><b>'.esc_html($number).'</b><div><h2>'.esc_html($title).'</h2><p>'.esc_html($description).'</p></div></div></div>';
+    }
+    private static function panel_close() { echo '</section>'; }
+    private static function text_field($name,$label,$value) { echo '<label class="pdp-studio-field"><span>'.esc_html($label).'</span><input type="text" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></label>'; }
+    private static function url_field($name,$label,$value) { echo '<label class="pdp-studio-field"><span>'.esc_html($label).'</span><input class="code" type="url" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></label>'; }
+    private static function compact_check($name,$label,$value) { echo '<label class="pdp-compact-check"><input type="checkbox" name="'.esc_attr($name).'" value="1" '.checked($value,'1',false).'><span>'.esc_html($label).'</span></label>'; }
 
     private static function switch_row($name,$title,$description,$value) {
         echo '<label class="pdp-automation-switch"><input type="checkbox" name="'.esc_attr($name).'" value="1" '.checked($value,'1',false).'><span class="pdp-toggle-track"></span><span><strong>'.esc_html($title).'</strong><small>'.esc_html($description).'</small></span></label>';
