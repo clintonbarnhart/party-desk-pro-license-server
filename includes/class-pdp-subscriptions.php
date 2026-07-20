@@ -8,6 +8,10 @@ final class PDP_Subscriptions {
         add_action('admin_post_pdp_save_square_subscription_settings', array(__CLASS__, 'save_square_settings'));
         add_action('admin_post_pdp_test_webhook_log', array(__CLASS__, 'create_test_log'));
         add_action('admin_post_pdp_clear_webhook_logs', array(__CLASS__, 'clear_webhook_logs'));
+        add_action('admin_post_pdp_test_square_connection', array(__CLASS__, 'test_connection'));
+        add_action('admin_post_pdp_sync_square_customer', array(__CLASS__, 'sync_customer'));
+        add_action('admin_post_pdp_subscription_action', array(__CLASS__, 'subscription_action'));
+        add_action('admin_post_pdp_create_square_subscription', array(__CLASS__, 'create_subscription'));
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
     }
 
@@ -61,6 +65,37 @@ final class PDP_Subscriptions {
         self::redirect_notice('pdp-square-subscriptions', 'Square subscription settings saved.');
     }
 
+    public static function test_connection() {
+        if (!current_user_can('manage_options')) { wp_die(esc_html__('You do not have permission to test Square.', 'party-desk-pro-license-server')); }
+        check_admin_referer('pdp_test_square_connection');
+        $result = (new PDP_Square_Client())->test_connection();
+        if (is_wp_error($result)) { self::redirect_notice('pdp-square-subscriptions', 'Square connection failed: ' . $result->get_error_message(), 'error'); }
+        $locations = isset($result['locations']) ? count($result['locations']) : 0;
+        self::redirect_notice('pdp-square-subscriptions', 'Square connection successful. ' . $locations . ' location(s) available.');
+    }
+
+    public static function sync_customer() {
+        if (!current_user_can('manage_options')) { wp_die('Permission denied.'); }
+        check_admin_referer('pdp_sync_square_customer');
+        $user_id = absint($_POST['user_id'] ?? 0);
+        $result = PDP_Square_Sync::sync_user($user_id);
+        self::redirect_notice('pdp-subscriptions', is_wp_error($result) ? 'Customer sync failed: '.$result->get_error_message() : 'Customer synchronized with Square.', is_wp_error($result) ? 'error' : 'success');
+    }
+
+    public static function create_subscription() {
+        if (!current_user_can('manage_options')) { wp_die('Permission denied.'); }
+        check_admin_referer('pdp_create_square_subscription');
+        $result = PDP_Subscription_Manager::create(array('user_id'=>absint($_POST['user_id'] ?? 0),'plan_id'=>absint($_POST['plan_id'] ?? 0),'license_id'=>absint($_POST['license_id'] ?? 0),'square_plan_variation_id'=>sanitize_text_field(wp_unslash($_POST['square_plan_variation_id'] ?? ''))));
+        self::redirect_notice('pdp-subscriptions', is_wp_error($result) ? 'Subscription creation failed: '.$result->get_error_message() : 'Square subscription created.', is_wp_error($result) ? 'error' : 'success');
+    }
+
+    public static function subscription_action() {
+        if (!current_user_can('manage_options')) { wp_die('Permission denied.'); }
+        check_admin_referer('pdp_subscription_action');
+        $result = PDP_Subscription_Manager::action(absint($_POST['subscription_id'] ?? 0), sanitize_key($_POST['subscription_action'] ?? ''));
+        self::redirect_notice('pdp-subscriptions', is_wp_error($result) ? 'Subscription action failed: '.$result->get_error_message() : 'Subscription updated.', is_wp_error($result) ? 'error' : 'success');
+    }
+
     public static function create_test_log() {
         if (!current_user_can('manage_options')) { wp_die(esc_html__('You do not have permission to create test logs.', 'party-desk-pro-license-server')); }
         check_admin_referer('pdp_test_webhook_log');
@@ -87,8 +122,8 @@ final class PDP_Subscriptions {
         self::redirect_notice('pdp-webhook-logs', 'Webhook logs were cleared.');
     }
 
-    private static function redirect_notice($page, $message) {
-        wp_safe_redirect(add_query_arg(array('page'=>$page,'pdp_notice'=>rawurlencode($message)), admin_url('admin.php')));
+    private static function redirect_notice($page, $message, $type='success') {
+        wp_safe_redirect(add_query_arg(array('page'=>$page,'pdp_notice'=>rawurlencode($message),'pdp_notice_type'=>sanitize_key($type)), admin_url('admin.php')));
         exit;
     }
 
@@ -116,14 +151,15 @@ final class PDP_Subscriptions {
             return new WP_REST_Response(array('ok'=>false,'message'=>'Invalid signature.'), 403);
         }
 
+        $processing = PDP_Webhook_Processor::process(is_array($payload) ? $payload : array());
         $log_id = PDP_DB::log_webhook(array(
             'event_id'=>$event_id,
             'event_type'=>$event_type,
             'signature_valid'=>1,
-            'processing_status'=>'processed',
+            'processing_status'=>!empty($processing['handled'])?'processed':'ignored',
             'http_status'=>200,
             'payload'=>$raw,
-            'response_body'=>array('ok'=>true),
+            'response_body'=>array('ok'=>true,'processing'=>$processing),
             'processed_at'=>current_time('mysql'),
         ));
         PDP_DB::log_event(0, $event_type, 'Square webhook received and validated.', array('event_id'=>$event_id,'webhook_log_id'=>$log_id), 'square');

@@ -38,3 +38,7 @@ This is alpha software. Test on a staging WordPress installation before producti
 ## Phase 1 Core Framework
 
 The `3.1.0-alpha1` phase adds a service bootstrap, autoloading, repeatable migrations, typed settings, privacy-safe logging, security helpers, and a System & Diagnostics admin screen. See `PHASE1.md`.
+
+## Phase 2 Square Billing Engine
+
+The `3.2.0-alpha2` release adds a real Square API client, connection testing, customer synchronization, subscription creation and lifecycle controls, plus webhook-driven reconciliation. See `PHASE2.md`.
